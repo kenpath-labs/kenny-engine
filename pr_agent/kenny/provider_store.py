@@ -22,6 +22,12 @@ def _log():
 
 _CACHE_TTL_SECONDS = 30
 
+# pr-agent refuses to run against a model whose context window it doesn't know,
+# and it only knows the ones hard-coded in algo/__init__.py. Custom endpoints are
+# exactly the case that isn't listed, so assume a conservative window rather than
+# making every provider fail until someone fills in an optional field.
+DEFAULT_MODEL_MAX_TOKENS = 32000
+
 
 @dataclass
 class Provider:
@@ -121,8 +127,8 @@ def apply_provider_to_settings(settings, provider: Provider) -> None:
         if p.litellm_model != provider.litellm_model
     ]
     settings.set("CONFIG.FALLBACK_MODELS", fallbacks)
-    if provider.max_tokens:
-        settings.set("CONFIG.CUSTOM_MODEL_MAX_TOKENS", provider.max_tokens)
+    settings.set("CONFIG.CUSTOM_MODEL_MAX_TOKENS",
+                 provider.max_tokens or DEFAULT_MODEL_MAX_TOKENS)
     if provider.api_base:
         settings.set("OPENAI.API_BASE", provider.api_base)
     if provider.api_key:
