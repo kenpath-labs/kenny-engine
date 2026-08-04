@@ -12,4 +12,6 @@ ENV PYTHONPATH=/app
 ADD pr_agent pr_agent
 
 # Railway injects PORT; describe/review runs are long, hence the generous timeout.
-CMD ["sh", "-c", "python -m gunicorn -k uvicorn.workers.UvicornWorker -w 2 --timeout 300 --forwarded-allow-ips '*' -b 0.0.0.0:${PORT:-3000} pr_agent.servers.kenny_server:app"]
+# "[::]" binds IPv6 (and IPv4 on dual-stack): Railway private DNS resolves to IPv6
+# only, so the dashboard could not reach us over railway.internal on 0.0.0.0.
+CMD ["sh", "-c", "python -m gunicorn -k uvicorn.workers.UvicornWorker -w 2 --timeout 300 --forwarded-allow-ips '*' -b [::]:${PORT:-3000} pr_agent.servers.kenny_server:app"]
