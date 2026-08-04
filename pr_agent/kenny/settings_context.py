@@ -52,4 +52,8 @@ def kenny_request_settings(provider_id: Optional[str] = None):
 
     settings.set("CONFIG.PUBLISH_OUTPUT", False)
     settings.set("CONFIG.PUBLISH_OUTPUT_PROGRESS", False)
+    # The tools swallow their own exceptions and return empty output, which reaches
+    # the dashboard as an indistinguishable "no output". Let them raise so the real
+    # cause (bad key, context window, model refusal) is what the user sees.
+    settings.set("CONFIG.PROPAGATE_TOOL_ERRORS", True)
     return settings

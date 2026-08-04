@@ -7,6 +7,7 @@ Auth is a shared secret: X-Kenny-Key must equal env KENNY_API_KEY.
 """
 
 import asyncio
+import traceback
 import os
 import time
 from typing import Optional
@@ -82,8 +83,12 @@ def _meta(settings, started: float) -> dict:
 
 
 def _tool_failure(op: str, e: Exception):
-    get_logger().error(f"Kenny API {op} failed: {e}")
-    return HTTPException(status_code=502, detail=f"{op} failed: {e}")
+    # Include the exception type — LiteLLM's messages alone are often ambiguous
+    # (an auth failure and an unknown model can read almost identically).
+    detail = f"{type(e).__name__}: {e}" if not isinstance(e, RuntimeError) else str(e)
+    get_logger().error(f"Kenny API {op} failed: {detail}",
+                       artifact={"traceback": traceback.format_exc()})
+    return HTTPException(status_code=502, detail=f"{op} failed — {detail}"[:1500])
 
 
 @router.get("/health")
