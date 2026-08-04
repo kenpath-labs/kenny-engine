@@ -50,6 +50,13 @@ async def handle_github_webhooks(background_tasks: BackgroundTasks, request: Req
     context["installation_id"] = installation_id
     context["settings"] = copy.deepcopy(global_settings)
     context["git_provider"] = {}
+    try:  # KENNY: route webhook auto-commands through the dashboard's active provider
+        from pr_agent.kenny.provider_store import apply_provider_to_settings, get_active_provider
+        _kenny_provider = get_active_provider()
+        if _kenny_provider is not None:
+            apply_provider_to_settings(context["settings"], _kenny_provider)
+    except Exception as e:
+        get_logger().warning(f"Kenny provider override failed; using env config: {e}")
     background_tasks.add_task(handle_request, body, event=request.headers.get("X-GitHub-Event", None))
     return {}
 

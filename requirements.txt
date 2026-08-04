@@ -44,6 +44,9 @@ pydantic==2.13.3
 pydantic-settings==2.14.2
 html2text==2024.2.26
 giteapy==1.0.8
+# KENNY: provider store (Postgres) + Fernet key decryption
+psycopg[binary]==3.2.4
+cryptography>=43.0.0
 # Uncomment the following lines to enable the 'similar issue' tool
 # pinecone-client
 # pinecone-datasets @ git+https://github.com/mrT23/pinecone-datasets.git@main

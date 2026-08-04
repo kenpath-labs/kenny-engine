@@ -94,7 +94,9 @@ class PR_LineQuestions:
                 model_answer_sanitized = " " + model_answer_sanitized
 
             get_logger().info('Preparing answer...')
-            if comment_id:
+            if not get_settings().config.publish_output:  # KENNY: honor publish_output like pr_reviewer/pr_description
+                get_settings().data = {"artifact": model_answer_sanitized}
+            elif comment_id:
                 self.git_provider.reply_to_comment_from_comment_id(comment_id, model_answer_sanitized)
             else:
                 self.git_provider.publish_comment(model_answer_sanitized)

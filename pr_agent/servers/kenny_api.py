@@ -1,0 +1,184 @@
+# KENNY
+"""Kenny JSON API: run PR-Agent tools in-process and return their output as JSON.
+
+Every endpoint installs a request-scoped settings copy with publish_output=False
+(see pr_agent.kenny.settings_context), so nothing here ever posts to GitHub.
+Auth is a shared secret: X-Kenny-Key must equal env KENNY_API_KEY.
+"""
+
+import asyncio
+import os
+import time
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from pr_agent.config_loader import get_settings
+from pr_agent.kenny.settings_context import UnknownProviderError, kenny_request_settings
+from pr_agent.log import get_logger
+
+router = APIRouter(prefix="/kenny/v1")
+
+
+def require_api_key(request: Request):
+    expected = os.environ.get("KENNY_API_KEY")
+    if not expected:
+        raise HTTPException(status_code=503, detail="KENNY_API_KEY is not configured on the engine")
+    if request.headers.get("X-Kenny-Key") != expected:
+        raise HTTPException(status_code=401, detail="Invalid X-Kenny-Key")
+
+
+class PRRequest(BaseModel):
+    pr_url: str
+    provider_id: Optional[str] = None
+
+
+class AskRequest(PRRequest):
+    question: str
+
+
+class ExplainHunkRequest(PRRequest):
+    file_name: str
+    line_start: int
+    line_end: int
+    side: str = "RIGHT"
+    diff_hunk: Optional[str] = None
+    question: Optional[str] = None
+
+
+class ProviderTestRequest(BaseModel):
+    litellm_model: str
+    api_base: Optional[str] = None
+    api_key: Optional[str] = None
+
+
+def _validate_pr_url(pr_url: str):
+    if "/pull/" not in pr_url and "/merge_requests/" not in pr_url and "/pull-requests/" not in pr_url:
+        raise HTTPException(status_code=422, detail=f"Not a recognizable PR URL: {pr_url}")
+
+
+def _setup(body: PRRequest):
+    _validate_pr_url(body.pr_url)
+    try:
+        return kenny_request_settings(body.provider_id)
+    except UnknownProviderError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+def _meta(settings, started: float) -> dict:
+    return {
+        "elapsed_ms": int((time.monotonic() - started) * 1000),
+        "model_used": settings.config.model,
+    }
+
+
+def _tool_failure(op: str, e: Exception):
+    get_logger().error(f"Kenny API {op} failed: {e}")
+    return HTTPException(status_code=502, detail=f"{op} failed: {e}")
+
+
+@router.get("/health")
+async def health():
+    return {"status": "ok", "service": "kenny-engine"}
+
+
+@router.post("/explain", dependencies=[Depends(require_api_key)])
+async def explain(body: PRRequest):
+    from pr_agent.tools.pr_description import PRDescription
+    settings = _setup(body)
+    started = time.monotonic()
+    try:
+        tool = PRDescription(body.pr_url)
+        await tool.run()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _tool_failure("explain", e)
+    data = getattr(tool, "data", None)
+    artifact = (getattr(settings, "data", None) or {}).get("artifact")
+    if not data and not artifact:
+        raise _tool_failure("explain", RuntimeError("model returned no output"))
+    return {"data": data, "artifact": artifact, **_meta(settings, started)}
+
+
+@router.post("/explain-hunk", dependencies=[Depends(require_api_key)])
+async def explain_hunk(body: ExplainHunkRequest):
+    from pr_agent.tools.pr_line_questions import PR_LineQuestions
+    settings = _setup(body)
+    settings.set("FILE_NAME", body.file_name)
+    settings.set("LINE_START", body.line_start)
+    settings.set("LINE_END", body.line_end)
+    settings.set("SIDE", body.side)
+    if body.diff_hunk:
+        settings.set("ASK_DIFF_HUNK", body.diff_hunk)
+    question = body.question or "Explain what this change does and why it matters."
+    started = time.monotonic()
+    try:
+        tool = PR_LineQuestions(body.pr_url, args=[question])
+        await tool.run()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _tool_failure("explain-hunk", e)
+    answer = (getattr(settings, "data", None) or {}).get("artifact")
+    if not answer:
+        raise _tool_failure("explain-hunk", RuntimeError("no answer produced (empty hunk match?)"))
+    return {"answer": answer, **_meta(settings, started)}
+
+
+@router.post("/review", dependencies=[Depends(require_api_key)])
+async def review(body: PRRequest):
+    from pr_agent.tools.pr_reviewer import PRReviewer
+    settings = _setup(body)
+    started = time.monotonic()
+    try:
+        tool = PRReviewer(body.pr_url)
+        await tool.run()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _tool_failure("review", e)
+    artifact = (getattr(settings, "data", None) or {}).get("artifact")
+    if not artifact:
+        raise _tool_failure("review", RuntimeError("model returned no output"))
+    return {"artifact": artifact, **_meta(settings, started)}
+
+
+@router.post("/ask", dependencies=[Depends(require_api_key)])
+async def ask(body: AskRequest):
+    from pr_agent.tools.pr_questions import PRQuestions
+    settings = _setup(body)
+    started = time.monotonic()
+    try:
+        tool = PRQuestions(body.pr_url, args=[body.question])
+        await tool.run()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _tool_failure("ask", e)
+    artifact = (getattr(settings, "data", None) or {}).get("artifact")
+    if not artifact:
+        raise _tool_failure("ask", RuntimeError("model returned no output"))
+    return {"artifact": artifact, **_meta(settings, started)}
+
+
+@router.post("/providers/test", dependencies=[Depends(require_api_key)])
+async def providers_test(body: ProviderTestRequest):
+    import litellm
+    started = time.monotonic()
+    kwargs = {
+        "model": body.litellm_model,
+        "messages": [{"role": "user", "content": "Reply with the single word: ok"}],
+        "max_tokens": 10,
+        "timeout": 20,
+    }
+    if body.api_base:
+        kwargs["api_base"] = body.api_base
+    if body.api_key:
+        kwargs["api_key"] = body.api_key
+    try:
+        await asyncio.wait_for(litellm.acompletion(**kwargs), timeout=25)
+    except Exception as e:
+        return {"ok": False, "latency_ms": int((time.monotonic() - started) * 1000), "error": str(e)}
+    return {"ok": True, "latency_ms": int((time.monotonic() - started) * 1000), "error": None}

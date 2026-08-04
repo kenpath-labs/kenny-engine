@@ -77,6 +77,8 @@ class PRQuestions:
         if get_settings().config.publish_output:
             self.git_provider.publish_comment(pr_comment)
             self.git_provider.remove_initial_comment()
+        else:  # KENNY: expose the answer as an artifact like pr_reviewer/pr_description
+            get_settings().data = {"artifact": pr_comment}
         return ""
 
     def identify_image_in_comment(self):
