@@ -57,6 +57,22 @@ async def handle_github_webhooks(background_tasks: BackgroundTasks, request: Req
             apply_provider_to_settings(context["settings"], _kenny_provider)
     except Exception as e:
         get_logger().warning(f"Kenny provider override failed; using env config: {e}")
+
+    try:  # KENNY: honor the dashboard's per-repo review configuration
+        from pr_agent.kenny.settings_store import (apply_review_settings, auto_commands,
+                                                   get_settings_for_repo)
+        _kenny_repo = body.get("repository", {}).get("full_name")
+        _kenny_cfg = get_settings_for_repo(_kenny_repo)
+        if not _kenny_cfg.enabled:
+            get_logger().info(f"Kenny is disabled for {_kenny_repo}; ignoring webhook")
+            return {}
+        apply_review_settings(context["settings"], _kenny_cfg)
+        context["settings"].set("GITHUB_APP.PR_COMMANDS", auto_commands(_kenny_cfg))
+        if not _kenny_cfg.review_on_push:
+            context["settings"].set("GITHUB_APP.HANDLE_PUSH_TRIGGER", False)
+    except Exception as e:
+        get_logger().warning(f"Kenny review-settings override failed; using defaults: {e}")
+
     background_tasks.add_task(handle_request, body, event=request.headers.get("X-GitHub-Event", None))
     return {}
 

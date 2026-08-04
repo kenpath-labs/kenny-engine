@@ -100,6 +100,7 @@ class KeyIssuesComponentLink(BaseModel):
     relevant_file: str = Field(description="The full file path of the relevant file")
     issue_header: str = Field(description="One or two word title for the issue. For example: 'Possible Bug', etc.")
     issue_content: str = Field(description="A short and concise description of the issue, why it matters, and the specific scenario or input that triggers it. Do not mention line numbers in this field.")
+    severity: str = Field(description="How serious the issue is. Must be exactly one of: 'critical' (data loss, security breach, or production outage), 'high' (a bug that will affect users), 'medium' (a real problem with limited blast radius), 'low' (minor or stylistic).")
     start_line: int = Field(description="The start line that corresponds to this issue in the relevant file")
     end_line: int = Field(description="The end line that corresponds to this issue in the relevant file")
 
@@ -195,6 +196,8 @@ review:
         Possible Bug
       issue_content: |
         ...
+      severity: |
+        high
       start_line: 12
       end_line: 14
     - ...

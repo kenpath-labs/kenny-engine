@@ -58,6 +58,15 @@ class TodoItem(TypedDict):
     content: str
 
 
+# KENNY: severity chips for review findings (see pr_reviewer_prompts.toml)
+KENNY_SEVERITY_BADGES = {
+    "critical": "🔴 Critical",
+    "high": "🟠 High",
+    "medium": "🟡 Medium",
+    "low": "🔵 Low",
+}
+
+
 class PRReviewHeader(str, Enum):  # KENNY ("Reviewer", not "Review" — mosaico's verb
     # matcher treats a bare \breview\b as an explicit command, see dispatch._explicit_verb)
     REGULAR = "## Kenny Reviewer Guide"
@@ -285,6 +294,11 @@ def convert_to_markdown_v2(output_data: dict,
                         if issue_header.lower() == 'possible bug':
                             issue_header = 'Possible Issue'  # Make the header less frightening
                         issue_content = issue.get('issue_content', '').strip()
+                        # KENNY: prefix the header with a severity chip so the PR comment
+                        # carries the same signal the dashboard's Findings page filters on.
+                        severity = str(issue.get('severity', '') or '').strip().lower()
+                        if severity in KENNY_SEVERITY_BADGES:
+                            issue_header = f"{KENNY_SEVERITY_BADGES[severity]} {issue_header}"
                         start_line = int(str(issue.get('start_line', 0)).strip())
                         end_line = int(str(issue.get('end_line', 0)).strip())
 

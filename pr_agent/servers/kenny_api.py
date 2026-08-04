@@ -54,6 +54,13 @@ class ProviderTestRequest(BaseModel):
     provider_id: Optional[str] = None  # resolve stored (encrypted) credentials server-side
 
 
+def _as_int(value) -> Optional[int]:
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def _validate_pr_url(pr_url: str):
     if "/pull/" not in pr_url and "/merge_requests/" not in pr_url and "/pull-requests/" not in pr_url:
         raise HTTPException(status_code=422, detail=f"Not a recognizable PR URL: {pr_url}")
@@ -143,7 +150,80 @@ async def review(body: PRRequest):
     artifact = (getattr(settings, "data", None) or {}).get("artifact")
     if not artifact:
         raise _tool_failure("review", RuntimeError("model returned no output"))
-    return {"artifact": artifact, **_meta(settings, started)}
+    parsed = (getattr(tool, "data", None) or {}).get("review", {})
+    findings = []
+    for issue in parsed.get("key_issues_to_review", []) or []:
+        if not isinstance(issue, dict):
+            continue
+        severity = str(issue.get("severity", "") or "").strip().lower()
+        findings.append({
+            "file": str(issue.get("relevant_file", "") or "").strip(),
+            "header": str(issue.get("issue_header", "") or "").strip(),
+            "content": str(issue.get("issue_content", "") or "").strip(),
+            "severity": severity if severity in ("critical", "high", "medium", "low") else "medium",
+            "start_line": _as_int(issue.get("start_line")),
+            "end_line": _as_int(issue.get("end_line")),
+        })
+    return {
+        "artifact": artifact,
+        "findings": findings,
+        "effort": parsed.get("estimated_effort_to_review_[1-5]"),
+        "security_concerns": parsed.get("security_concerns"),
+        **_meta(settings, started),
+    }
+
+
+@router.post("/improve", dependencies=[Depends(require_api_key)])
+async def improve(body: PRRequest):
+    """Qodo's flagship: actionable code suggestions with before/after snippets."""
+    from pr_agent.tools.pr_code_suggestions import PRCodeSuggestions
+    settings = _setup(body)
+    started = time.monotonic()
+    try:
+        tool = PRCodeSuggestions(body.pr_url)
+        await tool.run()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _tool_failure("improve", e)
+    raw = (getattr(tool, "data", None) or {}).get("code_suggestions", []) or []
+    suggestions = []
+    for s in raw:
+        if not isinstance(s, dict):
+            continue
+        suggestions.append({
+            "file": str(s.get("relevant_file", "") or "").strip(),
+            "summary": str(s.get("one_sentence_summary", "") or "").strip(),
+            "content": str(s.get("suggestion_content", "") or "").strip(),
+            "existing_code": str(s.get("existing_code", "") or ""),
+            "improved_code": str(s.get("improved_code", "") or ""),
+            "label": str(s.get("label", "") or "").strip(),
+            "score": _as_int(s.get("score")),
+            "score_why": str(s.get("score_why", "") or "").strip(),
+        })
+    return {
+        "suggestions": suggestions,
+        "artifact": (getattr(settings, "data", None) or {}).get("artifact"),
+        **_meta(settings, started),
+    }
+
+
+@router.post("/labels", dependencies=[Depends(require_api_key)])
+async def labels(body: PRRequest):
+    from pr_agent.tools.pr_generate_labels import PRGenerateLabels
+    settings = _setup(body)
+    started = time.monotonic()
+    try:
+        tool = PRGenerateLabels(body.pr_url)
+        await tool.run()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _tool_failure("labels", e)
+    return {
+        "labels": getattr(tool, "labels", []) or [],
+        **_meta(settings, started),
+    }
 
 
 @router.post("/ask", dependencies=[Depends(require_api_key)])

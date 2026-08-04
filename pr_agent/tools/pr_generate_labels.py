@@ -96,6 +96,9 @@ class PRGenerateLabels:
                     pr_labels_text = f"## PR Labels:\n{value}\n"
                     self.git_provider.publish_comment(pr_labels_text, is_temporary=False)
                 self.git_provider.remove_initial_comment()
+            else:  # KENNY: expose the labels instead of discarding them
+                self.labels = pr_labels
+                get_settings().data = {"artifact": ", ".join(pr_labels)}
         except Exception as e:
             get_logger().error(f"Error generating PR labels {self.pr_id}: {e}")
 
