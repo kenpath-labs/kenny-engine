@@ -32,6 +32,14 @@ def kenny_request_settings(provider_id: Optional[str] = None):
     context["settings"] = settings
     context["git_provider"] = {}
 
+    # Under GitHub App auth the provider needs an installation id, which only
+    # webhook payloads carry. Dashboard-triggered calls resolve it themselves.
+    if settings.get("GITHUB.DEPLOYMENT_TYPE", "user") == "app":
+        from pr_agent.kenny.github_app_auth import get_installation_id
+        installation_id = get_installation_id()
+        if installation_id:
+            context["installation_id"] = installation_id
+
     provider = None
     if provider_id:
         provider = get_provider(provider_id)
