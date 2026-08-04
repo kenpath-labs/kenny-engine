@@ -1,0 +1,10 @@
+# KENNY: Railway config-as-code — build with the Kenny Dockerfile
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "docker/Dockerfile.kenny"
+
+[deploy]
+healthcheckPath = "/kenny/v1/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
