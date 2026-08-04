@@ -35,6 +35,12 @@ class PRRequest(BaseModel):
     provider_id: Optional[str] = None
 
 
+class ReviewRequest(PRRequest):
+    publish: bool = False           # also post the review onto the pull request
+    inline: bool = True             # ...with one inline comment per finding
+    severity_threshold: str = "medium"
+
+
 class AskRequest(PRRequest):
     question: str
 
@@ -152,7 +158,7 @@ async def explain_hunk(body: ExplainHunkRequest):
 
 
 @router.post("/review", dependencies=[Depends(require_api_key)])
-async def review(body: PRRequest):
+async def review(body: ReviewRequest):
     from pr_agent.tools.pr_reviewer import PRReviewer
     settings = _setup(body)
     started = time.monotonic()
@@ -180,11 +186,28 @@ async def review(body: PRRequest):
             "start_line": _as_int(issue.get("start_line")),
             "end_line": _as_int(issue.get("end_line")),
         })
+    published = None
+    if body.publish:
+        from pr_agent.kenny.publish import publish_review
+        try:
+            published = publish_review(
+                tool.git_provider,
+                findings,
+                effort=parsed.get("estimated_effort_to_review_[1-5]"),
+                security=parsed.get("security_concerns"),
+                inline=body.inline,
+                threshold=body.severity_threshold,
+            )
+        except Exception as e:
+            get_logger().error(f"Kenny could not publish the review: {e}")
+            published = {"error": str(e)}
+
     return {
         "artifact": artifact,
         "findings": findings,
         "effort": parsed.get("estimated_effort_to_review_[1-5]"),
         "security_concerns": parsed.get("security_concerns"),
+        "published": published,
         **_meta(settings, started),
     }
 
