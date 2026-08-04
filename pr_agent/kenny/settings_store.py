@@ -8,10 +8,16 @@ so the webhook keeps working before the dashboard is ever opened.
 
 import os
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Optional
 
-from pr_agent.log import get_logger
+def _log():
+    """Lazy logger import — pr_agent.log pulls in config_loader, so importing it
+    at module scope makes this module unsafe to import early."""
+    from pr_agent.log import get_logger
+    return get_logger()
+
+
 
 _CACHE_TTL_SECONDS = 30
 
@@ -46,7 +52,7 @@ def _load_rows() -> dict:
                 "  FROM review_settings"
             ).fetchall()
     except Exception as e:
-        get_logger().warning(f"Kenny settings store unavailable: {e}")
+        _log().warning(f"Kenny settings store unavailable: {e}")
         return {}
     out = {}
     for r in rows:

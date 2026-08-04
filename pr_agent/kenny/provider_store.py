@@ -12,7 +12,13 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-from pr_agent.log import get_logger
+def _log():
+    """Lazy logger import — pr_agent.log pulls in config_loader, so importing it
+    at module scope makes this module unsafe to import early."""
+    from pr_agent.log import get_logger
+    return get_logger()
+
+
 
 _CACHE_TTL_SECONDS = 30
 
@@ -45,12 +51,12 @@ def _decrypt(enc: Optional[str]) -> Optional[str]:
         return None
     f = _fernet()
     if f is None:
-        get_logger().warning("KENNY_SECRET_KEY unset; cannot decrypt provider key")
+        _log().warning("KENNY_SECRET_KEY unset; cannot decrypt provider key")
         return None
     try:
         return f.decrypt(enc.encode()).decode()
     except Exception:
-        get_logger().error("Failed to decrypt provider api key")
+        _log().error("Failed to decrypt provider api key")
         return None
 
 
@@ -68,7 +74,7 @@ def _load_providers() -> list[Provider]:
             ).fetchall()
     except Exception as e:
         # Missing table (pre-migration) or transient DB issue: behave as "no providers"
-        get_logger().warning(f"Kenny provider store unavailable: {e}")
+        _log().warning(f"Kenny provider store unavailable: {e}")
         return []
     return [
         Provider(
