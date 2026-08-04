@@ -105,7 +105,7 @@ class TestConvertToMarkdownV2Branches:
             {"review": {"security_concerns": "No"}},
             incremental_review="2 commits",
         )
-        assert "Incremental PR Reviewer Guide" in out
+        assert "Incremental Kenny Reviewer Guide" in out
         assert "Review for commits since previous PR-Agent review 2 commits" in out
 
     def test_relevant_tests_yes_branch_gfm(self):

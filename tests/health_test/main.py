@@ -42,7 +42,7 @@ async def run_async() -> None:
         await agent.handle_request(pr_url, ['review'])
         pr_review_body = dict(get_settings().data)['artifact']
         assert isinstance(pr_review_body, str), f"Expected artifact to be str, got {type(pr_review_body).__name__}"
-        assert pr_review_body.startswith("##") and "PR Reviewer Guide" in pr_review_body, \
+        assert pr_review_body.startswith("##") and "Kenny Reviewer Guide" in pr_review_body, \
             "PR review artifact missing expected header"
         context['settings'] = copy.deepcopy(original_settings)  # Restore settings state after each test to prevent test interference
         get_logger().info("PR review generated successfully\n")

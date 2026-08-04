@@ -246,7 +246,7 @@ ratelimit_retries = 5
 base_url = "https://api.github.com"
 publish_inline_comments_fallback_with_verification = true
 try_fix_invalid_inline_comments = true
-app_name = "pr-agent"
+app_name = "kenny"  # KENNY
 ignore_bot_pr = true
 publish_as_check_run = false # when true, publish review/description/improve output as GitHub Checks instead of PR comments
 

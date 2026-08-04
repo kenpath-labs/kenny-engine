@@ -54,7 +54,7 @@ index 3333333..4444444 100644
 ```"""
 
 # Keep the 'Estimated effort to review:' line: r'review\b' does not match 'reviewer'.
-AGENT_REVIEW_OUTPUT = """## PR Reviewer Guide 🔍
+AGENT_REVIEW_OUTPUT = """## Kenny Reviewer Guide 🔍
 
 Here are some key observations to aid the review process:
 
@@ -903,7 +903,7 @@ class TestConversationVerbRouting:
                                   ("user", f"why is that a bug?\n{CORRECTED_DIFF}")))
         assert seen["verb"] == "ask"
         assert seen["question"].startswith("why is that a bug?")
-        assert "PR Reviewer Guide" not in seen["question"]
+        assert "Kenny Reviewer Guide" not in seen["question"]
 
 
 class TestVerbNegationAndPosition:
@@ -930,8 +930,8 @@ class TestVerbNegationAndPosition:
 
 class TestStickyReviewToken:
     def test_reviewer_heading_alone_does_not_reach_the_matcher(self):
-        assert _explicit_verb("## PR Reviewer Guide 🔍") is None
-        assert _detect_verb("## PR Reviewer Guide 🔍") == "review"
+        assert _explicit_verb("## Kenny Reviewer Guide 🔍") is None
+        assert _detect_verb("## Kenny Reviewer Guide 🔍") == "review"
 
     def test_estimated_effort_line_is_the_token_that_matches(self):
         assert _explicit_verb("### ⏱️ Estimated effort to review: 1 🔵⚪⚪⚪⚪") == "review"

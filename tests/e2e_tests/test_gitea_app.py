@@ -134,7 +134,7 @@ def test_e2e_run_gitea_app():
             if len(comments) >= 5:
                 valid_review = False
                 for comment in comments:
-                    if comment['body'].startswith('## PR Reviewer Guide 🔍'):
+                    if comment['body'].startswith('## Kenny Reviewer Guide 🔍'):
                         valid_review = True
                         break
                 if valid_review:

@@ -58,9 +58,10 @@ class TodoItem(TypedDict):
     content: str
 
 
-class PRReviewHeader(str, Enum):
-    REGULAR = "## PR Reviewer Guide"
-    INCREMENTAL = "## Incremental PR Reviewer Guide"
+class PRReviewHeader(str, Enum):  # KENNY ("Reviewer", not "Review" — mosaico's verb
+    # matcher treats a bare \breview\b as an explicit command, see dispatch._explicit_verb)
+    REGULAR = "## Kenny Reviewer Guide"
+    INCREMENTAL = "## Incremental Kenny Reviewer Guide"
 
 
 class ReasoningEffort(str, Enum):

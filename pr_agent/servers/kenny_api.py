@@ -51,6 +51,7 @@ class ProviderTestRequest(BaseModel):
     litellm_model: str
     api_base: Optional[str] = None
     api_key: Optional[str] = None
+    provider_id: Optional[str] = None  # resolve stored (encrypted) credentials server-side
 
 
 def _validate_pr_url(pr_url: str):
@@ -173,6 +174,17 @@ async def providers_test(body: ProviderTestRequest):
         "max_tokens": 10,
         "timeout": 20,
     }
+    if body.provider_id and not body.api_key:
+        from pr_agent.kenny.provider_store import get_provider, get_providers
+        get_providers(force_refresh=True)  # the dashboard may have just saved it
+        stored = get_provider(body.provider_id)
+        if stored is None:
+            raise HTTPException(status_code=422, detail=f"Unknown provider_id: {body.provider_id}")
+        kwargs["model"] = stored.litellm_model
+        if stored.api_base:
+            kwargs["api_base"] = stored.api_base
+        if stored.api_key:
+            kwargs["api_key"] = stored.api_key
     if body.api_base:
         kwargs["api_base"] = body.api_base
     if body.api_key:

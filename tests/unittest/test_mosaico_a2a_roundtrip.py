@@ -198,7 +198,7 @@ class TestA2ARoundTripStubbedLLM:
         assert "(no output produced)" not in text
         assert not text.startswith("Error:")
         # Confirms PRReviewer actually rendered (not a raw YAML passthrough).
-        assert "PR Reviewer Guide" in text
+        assert "Kenny Reviewer Guide" in text
 
     @pytest.mark.asyncio
     async def test_bad_url_yields_failed(self, monkeypatch):

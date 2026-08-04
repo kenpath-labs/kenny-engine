@@ -107,7 +107,7 @@ class TestGetIncrementalCommits:
             return_value=[new2, new1, old]
         )
 
-        prev = _comment("## PR Reviewer Guide\nbody", review_time)
+        prev = _comment("## Kenny Reviewer Guide\nbody", review_time)
         provider.get_issue_comments = MagicMock(return_value=[prev])
 
         changes_obj = MagicMock()
@@ -143,7 +143,7 @@ class TestGetIncrementalCommits:
             return_value=[merge, old]
         )
         provider.get_issue_comments = MagicMock(
-            return_value=[_comment("## PR Reviewer Guide", review_time)]
+            return_value=[_comment("## Kenny Reviewer Guide", review_time)]
         )
         provider.azure_devops_client.get_changes = MagicMock()
 
@@ -165,7 +165,7 @@ class TestGetIncrementalCommits:
             return_value=[merge2, merge1]
         )
         provider.get_issue_comments = MagicMock(
-            return_value=[_comment("## PR Reviewer Guide", review_time)]
+            return_value=[_comment("## Kenny Reviewer Guide", review_time)]
         )
         provider.azure_devops_client.get_changes = MagicMock()
 
@@ -185,7 +185,7 @@ class TestGetIncrementalCommits:
         new2 = _raw_commit("n2", "c2", _dt.datetime(2024, 6, 3, tzinfo=_dt.timezone.utc), parents=["n1"])
         provider.azure_devops_client.get_pull_request_commits = MagicMock(return_value=[new2, new1])
         provider.get_issue_comments = MagicMock(
-            return_value=[_comment("## PR Reviewer Guide", review_time)]
+            return_value=[_comment("## Kenny Reviewer Guide", review_time)]
         )
         provider.azure_devops_client.get_changes = MagicMock()
 
@@ -212,7 +212,7 @@ class TestGetIncrementalCommits:
             return_value=[newest_dated, mid_nodate, old]
         )
         provider.get_issue_comments = MagicMock(
-            return_value=[_comment("## PR Reviewer Guide", review_time)]
+            return_value=[_comment("## Kenny Reviewer Guide", review_time)]
         )
         changes_obj = MagicMock()
         changes_obj.changes = [{"item": {"path": "/x.py", "gitObjectType": "blob"}}]
