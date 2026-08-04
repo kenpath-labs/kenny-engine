@@ -83,12 +83,23 @@ def _meta(settings, started: float) -> dict:
 
 
 def _tool_failure(op: str, e: Exception):
-    # Include the exception type — LiteLLM's messages alone are often ambiguous
-    # (an auth failure and an unknown model can read almost identically).
-    detail = f"{type(e).__name__}: {e}" if not isinstance(e, RuntimeError) else str(e)
+    # retry_with_fallback_models re-raises as a generic "failed with any model"
+    # and chains the real cause, so walk __cause__ to the bottom — that's the
+    # message that actually tells you what to fix.
+    parts = []
+    seen = set()
+    cur: Optional[BaseException] = e
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        text = str(cur).strip()
+        if text:
+            label = type(cur).__name__
+            parts.append(text if isinstance(cur, RuntimeError) else f"{label}: {text}")
+        cur = cur.__cause__ or cur.__context__
+    detail = " ← ".join(parts) or type(e).__name__
     get_logger().error(f"Kenny API {op} failed: {detail}",
                        artifact={"traceback": traceback.format_exc()})
-    return HTTPException(status_code=502, detail=f"{op} failed — {detail}"[:1500])
+    return HTTPException(status_code=502, detail=f"{op} failed — {detail}"[:2000])
 
 
 @router.get("/health")

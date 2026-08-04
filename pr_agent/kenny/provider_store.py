@@ -109,14 +109,18 @@ def apply_provider_to_settings(settings, provider: Provider) -> None:
     never on global_settings.
     """
     settings.set("CONFIG.MODEL", provider.litellm_model)
-    settings.set("CONFIG.FALLBACK_MODELS", [provider.litellm_model])
-    fallbacks = sorted(
-        (p for p in get_providers() if not p.is_active and p.fallback_order is not None),
-        key=lambda p: p.fallback_order,
-    )
-    if provider.is_active and fallbacks:
-        settings.set("CONFIG.FALLBACK_MODELS",
-                     [provider.litellm_model] + [p.litellm_model for p in fallbacks])
+    # pr-agent tries [model] + fallback_models, so the primary must not repeat
+    # here or every failure is attempted twice against the same endpoint.
+    fallbacks = [
+        p.litellm_model
+        for p in sorted(
+            (p for p in get_providers()
+             if p.id != provider.id and p.fallback_order is not None),
+            key=lambda p: p.fallback_order,
+        )
+        if p.litellm_model != provider.litellm_model
+    ]
+    settings.set("CONFIG.FALLBACK_MODELS", fallbacks)
     if provider.max_tokens:
         settings.set("CONFIG.CUSTOM_MODEL_MAX_TOKENS", provider.max_tokens)
     if provider.api_base:
