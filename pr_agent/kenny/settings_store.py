@@ -78,12 +78,19 @@ def _rows(force_refresh: bool = False) -> dict:
 
 
 def get_settings_for_repo(repo: Optional[str]) -> ReviewSettings:
-    """Global row, overridden field-by-field by the repo's own row when present."""
+    """Most specific configuration wins: repo -> org -> instance default.
+
+    `repo` is "owner/name"; the dashboard stores an org-wide row under the bare
+    owner, and the instance-wide fallback under NULL.
+    """
     rows = _rows()
-    base = rows.get(None) or ReviewSettings()
-    if repo and repo in rows:
-        return rows[repo]
-    return base
+    if repo:
+        if repo in rows:
+            return rows[repo]
+        org = repo.split("/")[0]
+        if org in rows:
+            return rows[org]
+    return rows.get(None) or ReviewSettings()
 
 
 def apply_review_settings(settings, cfg: ReviewSettings) -> None:
