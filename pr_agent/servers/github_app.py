@@ -109,6 +109,16 @@ async def handle_comments_on_pr(body: Dict[str, Any],
                                 agent: PRAgent):
     if "comment" not in body:
         return {}
+    try:  # KENNY: honor the dashboard's per-repo comment-command gate
+        from pr_agent.kenny.settings_store import get_settings_for_repo
+        _kenny_repo = body.get("repository", {}).get("full_name")
+        _kenny_cfg = get_settings_for_repo(_kenny_repo)
+        if not _kenny_cfg.allow_comment_commands:
+            get_logger().info(f"Kenny comment commands are disabled for {_kenny_repo}; ignoring comment")
+            return {}
+    except Exception as e:
+        get_logger().warning(f"Kenny comment-command gate failed; continuing: {e}")
+
     comment_body = body.get("comment", {}).get("body")
     if comment_body and isinstance(comment_body, str) and not comment_body.lstrip().startswith("/"):
         if '/ask' in comment_body and comment_body.strip().startswith('> ![image]'):

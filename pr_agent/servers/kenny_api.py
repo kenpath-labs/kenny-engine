@@ -11,6 +11,7 @@ import traceback
 import os
 import time
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -71,6 +72,18 @@ def _as_int(value) -> Optional[int]:
 def _validate_pr_url(pr_url: str):
     if "/pull/" not in pr_url and "/merge_requests/" not in pr_url and "/pull-requests/" not in pr_url:
         raise HTTPException(status_code=422, detail=f"Not a recognizable PR URL: {pr_url}")
+
+
+def _repo_from_pr_url(pr_url: str) -> Optional[str]:
+    """Best-effort "owner/name" from https://github.com/{owner}/{name}/pull/{n}."""
+    try:
+        parts = [p for p in urlparse(pr_url).path.split("/") if p]
+        idx = parts.index("pull")
+        if idx >= 2:
+            return f"{parts[idx - 2]}/{parts[idx - 1]}"
+    except ValueError:
+        pass
+    return None
 
 
 def _setup(body: PRRequest):
@@ -160,6 +173,14 @@ async def explain_hunk(body: ExplainHunkRequest):
 @router.post("/review", dependencies=[Depends(require_api_key)])
 async def review(body: ReviewRequest):
     from pr_agent.tools.pr_reviewer import PRReviewer
+    if body.publish:  # KENNY: honor the dashboard's per-repo publish gate
+        from pr_agent.kenny.settings_store import get_settings_for_repo
+        _kenny_cfg = get_settings_for_repo(_repo_from_pr_url(body.pr_url))
+        if not _kenny_cfg.allow_publish:
+            raise HTTPException(
+                status_code=403,
+                detail="Publishing reviews onto pull requests is disabled for this repository",
+            )
     settings = _setup(body)
     started = time.monotonic()
     try:

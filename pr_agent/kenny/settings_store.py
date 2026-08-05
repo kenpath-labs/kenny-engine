@@ -34,6 +34,8 @@ class ReviewSettings:
     comment_style: str = "summary_inline"  # summary | inline | summary_inline
     inline_severity_threshold: str = "medium"
     custom_instructions: str = ""
+    allow_comment_commands: bool = True
+    allow_publish: bool = True
 
 
 _cache: dict = {"at": 0.0, "rows": None}
@@ -48,7 +50,7 @@ def _load_rows() -> dict:
         with psycopg.connect(dsn, connect_timeout=5) as conn:
             rows = conn.execute(
                 "SELECT repo, enabled, auto_review_on_open, review_on_push, auto_describe,"
-                "       auto_improve, comment_style, inline_severity_threshold, custom_instructions"
+                "       auto_improve, comment_style, inline_severity_threshold, custom_instructions, allow_comment_commands, allow_publish"
                 "  FROM review_settings"
             ).fetchall()
     except Exception as e:
@@ -65,6 +67,8 @@ def _load_rows() -> dict:
             comment_style=r[6] or "summary_inline",
             inline_severity_threshold=r[7] or "medium",
             custom_instructions=r[8] or "",
+            allow_comment_commands=bool(r[9]),
+            allow_publish=bool(r[10]),
         )
     return out
 
