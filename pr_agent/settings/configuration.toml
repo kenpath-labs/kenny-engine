@@ -58,7 +58,7 @@ temperature=0.2
 # ignore logic
 ignore_pr_title = ["^\\[Auto\\]", "^Auto"] # a list of regular expressions to match against the PR title to ignore the PR agent
 ignore_pr_target_branches = [] # a list of regular expressions of target branches to ignore from PR agent when an PR is created
-ignore_pr_source_branches = [] # a list of regular expressions of source branches to ignore from PR agent when an PR is created
+ignore_pr_source_branches = ["^staging$", "-staging$"] # KENNY: staging release PRs duplicate already-reviewed changes
 ignore_pr_labels = [] # labels to ignore from PR agent when an PR is created
 ignore_pr_authors = [] # authors to ignore from PR agent when an PR is created
 ignore_repositories = [] # a list of regular expressions of repository full names (e.g. "org/repo") to ignore from PR agent processing
@@ -107,7 +107,15 @@ require_ticket_analysis_review=true
 # general options
 publish_output_no_suggestions=true # Set to "false" if you only need the reviewer's remarks (not labels, not "security audit", etc.) and want to avoid noisy "No major issues detected" comments.
 persistent_comment=true
-extra_instructions = ""
+# KENNY: kenpath-labs review priorities, learned from real production bugs
+extra_instructions = """\
+Hunt hardest, in this order, for the defect classes that have actually bitten this codebase:
+1. Money and quota: billing arithmetic, credit/wallet mutations, purchase idempotency (duplicate webhook retries must converge), refund/renewal windows.
+2. Tenancy and authz: every query and cache key scoped to the right org_id; admin endpoints guarded; no cross-org data in list endpoints.
+3. Ordering: cache eviction/invalidation relative to DB commits and error paths (an early raise that skips eviction is a bug); Redis vs Postgres consistency.
+4. Input handling: unvalidated path/query/body values reaching SQL casts or int() and turning client mistakes into 500s; empty-string vs null bypasses of validation.
+5. Silent failure paths: swallowed exceptions, fire-and-forget awaits, retries that mask root causes.
+Only report an issue if you can state the concrete failure scenario (inputs/state -> wrong outcome). Do not pad with style remarks."""
 num_max_findings = 3
 final_update_message = true
 # review labels
@@ -272,15 +280,14 @@ pr_commands = [
     "/improve",
 ]
 # settings for "pull_request" event with "synchronize" action - used to detect and handle push triggers for new commits
-handle_push_trigger = false
+handle_push_trigger = true # KENNY: re-review when new commits land on an open PR
 push_trigger_ignore_bot_commits = true
 push_trigger_ignore_merge_commits = true
 push_trigger_wait_for_initial_review = true
 push_trigger_pending_tasks_backlog = true
 push_trigger_pending_tasks_ttl = 300
 push_commands = [
-    "/describe",
-    "/review",
+    "/review", # KENNY: pushes only refresh the review; the description stands
 ]
 
 [gitlab]
