@@ -40,6 +40,7 @@ class ReviewRequest(PRRequest):
     publish: bool = False           # also post the review onto the pull request
     inline: bool = True             # ...with one inline comment per finding
     severity_threshold: str = "medium"
+    skip_jev: bool = False          # KENNY: skip Jev-first cascade
 
 
 class AskRequest(PRRequest):
@@ -183,6 +184,17 @@ async def review(body: ReviewRequest):
             )
     settings = _setup(body)
     started = time.monotonic()
+
+    # KENNY: Jev-first cascade — high-confidence auto-comments, hints → LLM context
+    from pr_agent.kenny.jev_cascade import maybe_run_jev_cascade
+    jev_meta = await maybe_run_jev_cascade(
+        pr_url=body.pr_url,
+        settings=settings,
+        skip_jev=body.skip_jev,
+        publish=body.publish,
+        inline=body.inline,
+    )
+
     try:
         tool = PRReviewer(body.pr_url)
         await tool.run()
@@ -229,6 +241,7 @@ async def review(body: ReviewRequest):
         "effort": parsed.get("estimated_effort_to_review_[1-5]"),
         "security_concerns": parsed.get("security_concerns"),
         "published": published,
+        **jev_meta,
         **_meta(settings, started),
     }
 

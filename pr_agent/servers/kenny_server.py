@@ -14,11 +14,13 @@ from starlette_context.middleware import RawContextMiddleware
 
 from pr_agent.servers.github_app import router as github_router
 from pr_agent.servers.kenny_api import router as kenny_router
+from pr_agent.servers.kenny_jev import router as kenny_jev_router  # KENNY: Jev-check API
 
 middleware = [Middleware(RawContextMiddleware)]
 app = FastAPI(middleware=middleware)
 app.include_router(github_router)
 app.include_router(kenny_router)
+app.include_router(kenny_jev_router)
 
 
 def start():
