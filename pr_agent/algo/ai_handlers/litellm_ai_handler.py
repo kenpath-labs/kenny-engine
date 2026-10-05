@@ -537,7 +537,9 @@ class LiteLLMAIHandler(BaseAiHandler):
                 model_base = model
                 while model_base.startswith(('openai/', 'azure/')):
                     model_base = model_base.removeprefix('openai/').removeprefix('azure/')
-                if model_base.startswith('gpt-5'):
+                # KENNY: GPT-6 takes the GPT-5 shape: reasoning_effort, no temperature.
+                is_gpt6 = model_base.startswith('gpt-6')
+                if model_base.startswith('gpt-5') or is_gpt6:
                     # Use configured reasoning_effort or default to MEDIUM
                     config_effort = get_settings().config.reasoning_effort
                     try:
@@ -551,11 +553,20 @@ class LiteLLMAIHandler(BaseAiHandler):
                                 f"Using default '{effort}'. Valid values: {[e.value for e in ReasoningEffort]}"
                             )
 
+                    # KENNY: send "low" for efforts this GPT-6 model rejects.
+                    if is_gpt6 and (
+                        effort == ReasoningEffort.MINIMAL.value
+                        or (effort == ReasoningEffort.NONE.value
+                            and model_base.startswith(('gpt-6.1-sol', 'gpt-6-astra')))
+                    ):
+                        effort = ReasoningEffort.LOW.value
+
                     thinking_kwargs_gpt5 = {
                         "reasoning_effort": effort,
                         "allowed_openai_params": ["reasoning_effort"],
                     }
-                    get_logger().info(f"Using reasoning_effort='{effort}' for GPT-5 model")
+                    get_logger().info(
+                        f"Using reasoning_effort='{effort}' for {'GPT-6' if is_gpt6 else 'GPT-5'} model")
                     # Routing priority: Azure mode > explicit provider prefix in user config > openai/
                     # default. This preserves an explicit "azure/" the user wrote in config even when
                     # self.azure is false, and avoids stacking when self.azure already added "azure/".
