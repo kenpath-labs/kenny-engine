@@ -308,10 +308,10 @@ async def ask(body: AskRequest):
 async def providers_test(body: ProviderTestRequest):
     import litellm
     started = time.monotonic()
+    # No output cap: newer OpenAI models reject max_tokens.
     kwargs = {
         "model": body.litellm_model,
         "messages": [{"role": "user", "content": "Reply with the single word: ok"}],
-        "max_tokens": 10,
         "timeout": 20,
     }
     if body.provider_id and not body.api_key:

@@ -831,6 +831,114 @@ class TestLiteLLMReasoningEffort:
                     f"wrong routing for {input_model}: got {call_kwargs['model']}, expected {expected}"
                 )
 
+    # ========== Group 9: GPT-6 Family ==========
+
+    @pytest.mark.asyncio
+    async def test_gpt6_models_take_the_reasoning_path(self, monkeypatch, mock_logger):
+        """Regression: GPT-6 ids must get reasoning_effort and no temperature, like GPT-5.
+
+        Before the fix only startswith('gpt-5') entered this path, so a provider configured
+        with "openai/gpt-6.1-sol" was sent temperature=0.2 and OpenAI rejected every request.
+        """
+        fake_settings = create_mock_settings("medium")
+        monkeypatch.setattr(litellm_handler, "get_settings", lambda: fake_settings)
+        # Isolate from runner env: LiteLLMAIHandler.__init__ branches on these vars.
+        for _var in ("AWS_USE_IMDS", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+                     "AWS_SESSION_TOKEN", "AWS_REGION_NAME", "OPENAI_API_KEY"):
+            monkeypatch.delenv(_var, raising=False)
+
+        cases = [
+            ("gpt-6-sol", "openai/gpt-6-sol"),
+            ("gpt-6-luna", "openai/gpt-6-luna"),
+            ("gpt-6-astra", "openai/gpt-6-astra"),
+            ("gpt-6.1-sol", "openai/gpt-6.1-sol"),
+            ("openai/gpt-6.1-sol", "openai/gpt-6.1-sol"),
+            ("azure/gpt-6-sol", "azure/gpt-6-sol"),
+        ]
+
+        for input_model, expected in cases:
+            with patch(
+                'pr_agent.algo.ai_handlers.litellm_ai_handler.acompletion',
+                new_callable=AsyncMock,
+            ) as mock_completion:
+                mock_completion.return_value = create_mock_acompletion_response()
+
+                handler = LiteLLMAIHandler()
+                await handler.chat_completion(
+                    model=input_model,
+                    system="test system",
+                    user="test user"
+                )
+
+                call_kwargs = mock_completion.call_args[1]
+                assert call_kwargs["reasoning_effort"] == "medium", f"failed for {input_model}"
+                assert "reasoning_effort" in call_kwargs["allowed_openai_params"], f"failed for {input_model}"
+                assert "temperature" not in call_kwargs, f"temperature leaked for {input_model}"
+                assert call_kwargs["model"] == expected, (
+                    f"wrong routing for {input_model}: got {call_kwargs['model']}, expected {expected}"
+                )
+
+    @pytest.mark.asyncio
+    async def test_gpt6_unsupported_efforts_are_sent_as_low(self, monkeypatch, mock_logger):
+        """Efforts a GPT-6 model rejects are sent as 'low'; everything else is left alone.
+
+        No GPT-6 model accepts 'minimal', and GPT-6.1 Sol and GPT-6 Astra cannot switch
+        reasoning off, so 'none' is invalid for those two only.
+        """
+        cases = [
+            ("minimal", "gpt-6.1-sol", "low"),
+            ("minimal", "gpt-6-sol", "low"),
+            ("minimal", "gpt-5.6-sol", "minimal"),
+            ("none", "gpt-6.1-sol", "low"),
+            ("none", "openai/gpt-6.1-sol", "low"),
+            ("none", "gpt-6-astra", "low"),
+            ("none", "gpt-6-sol", "none"),
+            ("none", "gpt-6-luna", "none"),
+            ("none", "gpt-5.6-sol", "none"),
+        ]
+
+        for configured, model, expected_effort in cases:
+            monkeypatch.setattr(litellm_handler, "get_settings", lambda s=create_mock_settings(configured): s)
+
+            with patch(
+                'pr_agent.algo.ai_handlers.litellm_ai_handler.acompletion',
+                new_callable=AsyncMock,
+            ) as mock_completion:
+                mock_completion.return_value = create_mock_acompletion_response()
+
+                handler = LiteLLMAIHandler()
+                await handler.chat_completion(
+                    model=model,
+                    system="test system",
+                    user="test user"
+                )
+
+                call_kwargs = mock_completion.call_args[1]
+                assert call_kwargs["reasoning_effort"] == expected_effort, f"failed for {configured} on {model}"
+
+    @pytest.mark.asyncio
+    async def test_gpt6_supported_efforts_pass_through(self, monkeypatch, mock_logger):
+        """Efforts GPT-6.1 Sol accepts are sent exactly as configured."""
+        for effort in ("low", "medium", "high", "xhigh"):
+            monkeypatch.setattr(litellm_handler, "get_settings", lambda s=create_mock_settings(effort): s)
+
+            with patch(
+                'pr_agent.algo.ai_handlers.litellm_ai_handler.acompletion',
+                new_callable=AsyncMock,
+            ) as mock_completion:
+                mock_completion.return_value = create_mock_acompletion_response()
+
+                handler = LiteLLMAIHandler()
+                await handler.chat_completion(
+                    model="gpt-6.1-sol",
+                    system="test system",
+                    user="test user"
+                )
+
+                call_kwargs = mock_completion.call_args[1]
+                assert call_kwargs["reasoning_effort"] == effort
+                mock_logger.info.assert_any_call(f"Using reasoning_effort='{effort}' for GPT-6 model")
+
 
 class TestLiteLLMReasoningEffortGemini:
     """Gemini 2.5 reasoning_effort handling via the SUPPORT_REASONING_EFFORT_MODELS path.
